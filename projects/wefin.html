@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeFin | 오찬혁 포트폴리오</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="테마 전환">Light</button>
+
+<!-- TOC -->
+<nav class="toc">
+  <ul class="toc__list">
+    <li class="toc__item">
+      <a href="#architecture" class="toc__link">Architecture</a>
+    </li>
+    <li class="toc__item">
+      <a href="#order-flow" class="toc__link">Order Flow</a>
+    </li>
+    <li class="toc__item">
+      <a href="#key-decisions" class="toc__link">Key Decisions</a>
+      <ul class="toc__sub">
+        <li><a href="#kd-1" class="toc__link">Order/Trade 1:N 분리</a></li>
+        <li><a href="#kd-2" class="toc__link">비관적 락 + 이중 방어</a></li>
+        <li><a href="#kd-3" class="toc__link">totalBuyAmount 오차 방지</a></li>
+        <li><a href="#kd-4" class="toc__link">이벤트 아키텍처</a></li>
+        <li><a href="#kd-5" class="toc__link">엔티티 캡슐화</a></li>
+      </ul>
+    </li>
+    <li class="toc__item">
+      <a href="#troubleshooting" class="toc__link">Troubleshooting</a>
+      <ul class="toc__sub">
+        <li><a href="#ts-1" class="toc__link">DDL-엔티티 PK 불일치</a></li>
+        <li><a href="#ts-2" class="toc__link">매도 시 stale read</a></li>
+        <li><a href="#ts-3" class="toc__link">커밋 전 이벤트 발행</a></li>
+      </ul>
+    </li>
+    <li class="toc__item">
+      <a href="#collaboration" class="toc__link">Collaboration</a>
+      <ul class="toc__sub">
+        <li><a href="#collab-1" class="toc__link">인터페이스 계약</a></li>
+        <li><a href="#collab-2" class="toc__link">Mock 독립 개발</a></li>
+        <li><a href="#collab-3" class="toc__link">통합</a></li>
+        <li><a href="#collab-4" class="toc__link">충돌 방지 규칙</a></li>
+      </ul>
+    </li>
+    <li class="toc__item">
+      <a href="#team-impact" class="toc__link">Team Impact</a>
+    </li>
+  </ul>
+</nav>
+
+<div class="container">
+
+  <a href="../index.html" class="back-link">&larr; 돌아가기</a>
+
+  <!-- Header -->
+  <header class="detail-header">
+    <h1 class="detail-header__title">WeFin &mdash; 소셜 모의투자 플랫폼</h1>
+    <p class="detail-header__meta">2026.03 ~ 2026.05 &middot; 6인 팀</p>
+    <p class="detail-header__meta">담당: 주문/체결/자산/랭킹 모듈 설계&middot;구현 &mdash; 시세/종목 담당 팀원과 인터페이스 계약 기반 협업</p>
+    <p class="detail-header__meta" style="margin-top: 0.5rem;">Spring Boot 3 &middot; JPA &middot; QueryDSL 5.0 &middot; PostgreSQL &middot; JUnit 5 &middot; Mockito &middot; Testcontainers</p>
+    <div class="detail-header__links">
+      <a href="https://github.com/S0L-V/wefin-be" target="_blank">GitHub</a>
+      <a href="https://velog.io/@ochhs0829/series/WeFin-%EA%B0%9C%EB%B0%9C%EA%B8%B0%EB%A1%9D" target="_blank">기술블로그</a>
+    </div>
+  </header>
+
+  <!-- Architecture -->
+  <section id="architecture" class="section">
+    <h2 class="section__title">Architecture</h2>
+    <div class="mermaid">
+graph TB
+    subgraph Client
+        FE[프론트엔드]
+    end
+    subgraph Server["Spring Boot"]
+        subgraph Web["web/ — HTTP 계층"]
+            OC[OrderController]
+            AC[AccountController]
+        end
+        subgraph Domain["domain/ — 비즈니스 계층"]
+            OS[OrderService]
+            TS[TradeService]
+            VS[VirtualAccountService]
+            PS[PortfolioService]
+            EV["OrderMatchedEvent"]
+        end
+    end
+    subgraph Ext[외부]
+        KIS[한투 Open API]
+    end
+    PG[(PostgreSQL)]
+
+    FE -->|REST / WS| Web
+    OC --> OS
+    AC --> VS
+    OS --> TS & VS & PS
+    OS -->|이벤트 발행| EV
+    OS -.->|시세 조회| KIS
+    Domain --> PG
+    </div>
+
+    <div class="mermaid">
+erDiagram
+    VIRTUAL_ACCOUNT ||--o{ ORDERS : "1:N"
+    VIRTUAL_ACCOUNT ||--o{ PORTFOLIO : "1:N"
+    ORDERS ||--o{ TRADE : "1:N 부분체결"
+    STOCK ||--o{ ORDERS : "1:N"
+    STOCK ||--o{ PORTFOLIO : "1:N"
+
+    VIRTUAL_ACCOUNT {
+        bigserial virtual_account_id PK
+        uuid user_id UK
+        numeric balance
+        numeric total_realized_profit
+    }
+    ORDERS {
+        bigserial order_id PK
+        uuid order_no UK
+        bigint virtual_account_id FK
+        bigint stock_id FK
+        varchar order_type "MARKET/LIMIT"
+        varchar side "BUY/SELL"
+        integer quantity
+        integer filled_quantity "DEFAULT 0"
+        numeric request_price "nullable"
+        varchar status "PENDING/FILLED/PARTIAL/CANCELLED"
+        varchar currency "KRW/USD"
+        numeric exchange_rate
+        numeric fee
+        numeric tax
+        timestamptz cancelled_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    TRADE {
+        bigserial trade_id PK
+        uuid trade_no UK
+        bigint order_id FK
+        bigint virtual_account_id
+        bigint stock_id
+        varchar side "BUY/SELL"
+        integer quantity
+        numeric price
+        numeric total_amount
+        numeric fee
+        numeric tax
+        numeric realized_profit
+        varchar currency "KRW/USD"
+        numeric exchange_rate
+        timestamptz created_at
+    }
+    PORTFOLIO {
+        bigserial portfolio_id PK
+        bigint virtual_account_id FK
+        bigint stock_id FK
+        integer quantity
+        numeric avg_price
+        numeric total_buy_amount
+        varchar currency "KRW/USD"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    STOCK {
+        bigserial stock_id PK
+        varchar stock_code UK
+        varchar stock_name
+        varchar market "KOSPI/KOSDAQ"
+        varchar sector
+    }
+    </div>
+  </section>
+
+  <!-- Order Flow -->
+  <section id="order-flow" class="section">
+    <h2 class="section__title">Order Flow</h2>
+
+    <div class="flow-tabs">
+      <button class="flow-tab flow-tab--active" onclick="showFlow('buy')">시장가 매수</button>
+      <button class="flow-tab" onclick="showFlow('sell')">시장가 매도</button>
+      <a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-2-2-시장가-매수-구현-주문-접수부터-체결까지" target="_blank" style="margin-left:auto;align-self:center">매수 블로그</a>
+      <a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-2-3-시장가-매도-구현-실현손익-매도-세금-도메인-경계-분리" target="_blank" style="align-self:center">매도 블로그</a>
+    </div>
+
+    <!-- 매수 흐름 -->
+    <div id="flow-buy" class="flow-panel flow-panel--active">
+      <div class="flow">
+        <div class="flow__step" data-step="1">
+          <p class="flow__label">Validation</p>
+          <p class="flow__title">수량 검증</p>
+          <p class="flow__desc">quantity가 null이거나 0 이하이면 <code class="mono">ORDER_INVALID_QUANTITY</code> 예외</p>
+        </div>
+
+        <div class="flow__step" data-step="2">
+          <p class="flow__label">External API</p>
+          <p class="flow__title">현재가 조회</p>
+          <p class="flow__desc"><code class="mono">MarketPriceProvider.getCurrentPrice(stockCode)</code> &mdash; 한투 Open API에서 실시간 시세 조회</p>
+        </div>
+
+        <div class="flow__step" data-step="3">
+          <p class="flow__label">Calculation</p>
+          <p class="flow__title">금액 &middot; 수수료 계산</p>
+          <p class="flow__desc">총액과 수수료를 산출. 수수료는 금융 관례에 따라 절사(DOWN).</p>
+          <span class="flow__calc">totalAmount = price &times; quantity</span>
+          <span class="flow__calc">fee = totalAmount &times; 0.00015 (절사)</span>
+        </div>
+
+        <div class="flow__step flow__step--lock" data-step="4">
+          <p class="flow__label flow__label--lock">Pessimistic Lock</p>
+          <p class="flow__title">예수금 차감</p>
+          <p class="flow__desc"><code class="mono">findByIdForUpdate()</code>로 비관적 락 획득 후 잔고 검증 &rarr; 차감. DB 락 + 엔티티 검증 이중 방어.</p>
+          <span class="flow__calc">차감액 = totalAmount + fee</span>
+        </div>
+
+        <div class="flow__step" data-step="5">
+          <p class="flow__label">Persistence</p>
+          <p class="flow__title">Order 생성 &middot; Trade 생성</p>
+          <p class="flow__desc">Order(PENDING) 저장 &rarr; <code class="mono">Trade.createBuyTrade()</code>로 체결 기록 생성 (tax=0) &rarr; <code class="mono">order.fill(quantity)</code>로 FILLED 전이.</p>
+        </div>
+
+        <div class="flow__step flow__step--lock" data-step="6">
+          <p class="flow__label flow__label--lock">Pessimistic Lock</p>
+          <p class="flow__title">포트폴리오 갱신</p>
+          <p class="flow__desc"><code class="mono">addHolding()</code> &mdash; 기존 보유 시 수량 추가 + 평균단가 재계산, 신규면 Portfolio 생성. <code class="mono">totalBuyAmount</code>로 소수점 오차 방지.</p>
+        </div>
+
+        <div class="flow__step flow__step--event" data-step="7">
+          <p class="flow__label flow__label--event">Event (AFTER_COMMIT)</p>
+          <p class="flow__title">체결 이벤트 발행</p>
+          <p class="flow__desc"><code class="mono">OrderMatchedEvent.ofBuy()</code> 발행. 트랜잭션 커밋 후에만 리스너 실행 &rarr; WebSocket 알림, 채팅 등 후속 처리.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 매도 흐름 -->
+    <div id="flow-sell" class="flow-panel">
+      <div class="flow">
+        <div class="flow__step" data-step="1">
+          <p class="flow__label">Validation</p>
+          <p class="flow__title">수량 검증 + 현재가 조회</p>
+          <p class="flow__desc">수량 검증 후 <code class="mono">MarketPriceProvider</code>로 현재가 조회.</p>
+        </div>
+
+        <div class="flow__step flow__step--lock" data-step="2">
+          <p class="flow__label flow__label--lock">Pessimistic Lock</p>
+          <p class="flow__title">보유 종목 확인</p>
+          <p class="flow__desc"><code class="mono">getPortfolioForUpdate()</code>로 비관적 락 획득 &rarr; 보유 수량 &ge; 주문 수량 검증. 읽기 시점부터 락을 걸어 stale read 방지.</p>
+        </div>
+
+        <div class="flow__step" data-step="3">
+          <p class="flow__label">Calculation</p>
+          <p class="flow__title">금액 &middot; 수수료 &middot; 세금 &middot; 실현손익 계산</p>
+          <p class="flow__desc">매도는 수수료 + 세금(매도만 과세). 실현손익은 음수(손실)도 정상.</p>
+          <span class="flow__calc">fee = totalAmount &times; 0.00015 (절사)</span>
+          <span class="flow__calc">tax = totalAmount &times; 0.0018 (절사, 매도만)</span>
+          <span class="flow__calc">realizedProfit = (currentPrice - avgPrice) &times; qty</span>
+        </div>
+
+        <div class="flow__step" data-step="4">
+          <p class="flow__label">Persistence</p>
+          <p class="flow__title">Order 생성 &middot; Trade 생성</p>
+          <p class="flow__desc">Order 저장 &rarr; <code class="mono">Trade.createSellTrade()</code>로 체결 기록 생성 (fee, tax, realizedProfit 포함) &rarr; FILLED 전이.</p>
+        </div>
+
+        <div class="flow__step" data-step="5">
+          <p class="flow__label">Domain Update</p>
+          <p class="flow__title">포트폴리오 차감</p>
+          <p class="flow__desc"><code class="mono">deductQuantity()</code> &mdash; 수량 차감. 전량 매도 시 포트폴리오 행 삭제(hard delete).</p>
+        </div>
+
+        <div class="flow__step flow__step--lock" data-step="6">
+          <p class="flow__label flow__label--lock">Pessimistic Lock</p>
+          <p class="flow__title">예수금 입금 + 실현손익 누적</p>
+          <p class="flow__desc">비관적 락으로 계좌 조회 &rarr; 매도 대금 입금 &rarr; 실현손익 누적.</p>
+          <span class="flow__calc">입금액 = totalAmount - fee - tax</span>
+        </div>
+
+        <div class="flow__step flow__step--event" data-step="7">
+          <p class="flow__label flow__label--event">Event (AFTER_COMMIT)</p>
+          <p class="flow__title">체결 이벤트 발행</p>
+          <p class="flow__desc"><code class="mono">OrderMatchedEvent.ofSell()</code> 발행. tax, realizedProfit 포함. 수익 &plusmn;50만 이상 시 채팅 알림 트리거.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Decisions -->
+  <section id="key-decisions" class="section">
+    <h2 class="section__title">Key Decisions</h2>
+
+    <!-- 1 -->
+    <div id="kd-1" class="decision-card">
+      <p class="decision-card__number">01</p>
+      <h3 class="decision-card__title">Order/Trade 1:N 분리 설계</h3>
+      <p class="decision-card__label">Problem</p>
+      <p class="decision-card__text">주문과 체결이 항상 1:1이 아니다. 지정가 주문은 여러 번에 걸쳐 부분 체결될 수 있는데, 주문 테이블에 체결 정보를 합치면 부분체결 이력을 담을 수 없다.</p>
+      <p class="decision-card__label">Decision</p>
+      <p class="decision-card__text">Order와 Trade를 별도 엔티티로 분리하고, JPA 연관관계 대신 <strong>ID 참조(Long 필드)</strong>로 연결. Trade에 virtualAccountId, stockId를 비정규화 저장하여 JOIN 없이 독립 조회 가능하게 했다.</p>
+      <p class="decision-card__label">Result</p>
+      <p class="decision-card__text">부분체결 시나리오 정상 대응. Trade 조회 시 Order JOIN 불필요. 동시성 제어 범위가 각 엔티티 독립적 &mdash; 락 범위 최소화.</p>
+      <pre class="code-block"><code class="language-java">// Trade.java — 정적 팩토리로 매수/매도 분리
+public static Trade createBuyTrade(...)  { ... tax=0, profit=null }
+public static Trade createSellTrade(...) { ... tax, profit 포함 }</code></pre>
+      <p style="margin-top:0.5rem"><a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-2-1-OrderTrade-엔티티-설계-주문과-체결의-분리" target="_blank">관련 블로그</a></p>
+    </div>
+
+    <!-- 2 -->
+    <div id="kd-2" class="decision-card">
+      <p class="decision-card__number">02</p>
+      <h3 class="decision-card__title">비관적 락(PESSIMISTIC_WRITE) + 이중 방어</h3>
+      <p class="decision-card__label">Problem</p>
+      <p class="decision-card__text">동시에 2명이 같은 계좌의 예수금을 차감하면 레이스 컨디션 발생. 잔고 1,000만원에서 동시에 800만원씩 차감하면 둘 다 성공해버린다.</p>
+      <p class="decision-card__label">Decision</p>
+      <p class="decision-card__text">Repository에 <code class="mono">@Lock(PESSIMISTIC_WRITE)</code> + <code class="mono">findByIdForUpdate()</code> 메서드 분리. 엔티티의 <code class="mono">deduct()</code>에서 잔고 부족 검증 &mdash; <strong>DB 락 + 애플리케이션 검증 2중 보호</strong>. 트레이딩 시스템은 고경합 환경이므로 낙관적 락의 재시도 비용보다 비관적 락이 효율적.</p>
+      <p class="decision-card__label">Result</p>
+      <p class="decision-card__text">동시성 테스트 통과 (잔고 음수 0건). 락 순서 규칙(Account &rarr; Portfolio &rarr; Order)으로 데드락 방지.</p>
+      <pre class="code-block"><code class="language-java">@Lock(LockModeType.PESSIMISTIC_WRITE)
+@Query("SELECT a FROM VirtualAccount a WHERE a.virtualAccountId = :id")
+Optional&lt;VirtualAccount&gt; findByIdForUpdate(@Param("id") Long id);
+
+// 엔티티 레벨 이중 방어
+public void deduct(BigDecimal amount) {
+    if (this.balance.compareTo(amount) &lt; 0)
+        throw new BusinessException(ORDER_INSUFFICIENT_BALANCE);
+    this.balance = this.balance.subtract(amount);
+}</code></pre>
+      <p style="margin-top:0.5rem"><a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-1-2-가상계좌-생성과-예수금-관리-비관적-락-동시성-제어" target="_blank">관련 블로그</a></p>
+    </div>
+
+    <!-- 3 -->
+    <div id="kd-3" class="decision-card">
+      <p class="decision-card__number">03</p>
+      <h3 class="decision-card__title">totalBuyAmount 별도 저장으로 소수점 오차 방지</h3>
+      <p class="decision-card__label">Problem</p>
+      <p class="decision-card__text">추가 매수 시 평균단가를 재계산할 때, avgPrice만 저장하면 이전 반올림된 값으로 역산하게 되어 소수점 오차가 누적된다.</p>
+      <p class="decision-card__label">Decision</p>
+      <p class="decision-card__text"><code class="mono">totalBuyAmount</code>를 엔티티 필드로 별도 저장. 추가 매수 시 원본 금액을 직접 누적하고, avgPrice는 항상 원본 기반으로 재계산.</p>
+      <p class="decision-card__label">Result</p>
+      <p class="decision-card__text">10번 이상 추가 매수해도 소수점 오차 0원. 매도 시 avgPrice는 변경하지 않음 &mdash; 남은 주식의 매수 단가는 불변.</p>
+      <pre class="code-block"><code class="language-java">public void addQuantity(Integer quantity, BigDecimal price) {
+    this.totalBuyAmount = this.totalBuyAmount
+        .add(price.multiply(BigDecimal.valueOf(quantity)));
+    this.quantity += quantity;
+    this.avgPrice = this.totalBuyAmount
+        .divide(BigDecimal.valueOf(this.quantity), 2, RoundingMode.HALF_UP);
+}</code></pre>
+      <p style="margin-top:0.5rem"><a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-1-3-포트폴리오-구현-평균단가-재계산-매도-차감-전량-매도-삭제" target="_blank">관련 블로그</a></p>
+    </div>
+
+    <!-- 4 -->
+    <div id="kd-4" class="decision-card">
+      <p class="decision-card__number">04</p>
+      <h3 class="decision-card__title">이벤트 기반 아키텍처 (AFTER_COMMIT)</h3>
+      <p class="decision-card__label">Problem</p>
+      <p class="decision-card__text">체결 완료 후 WebSocket 알림, 채팅 메시지, 랭킹 갱신 등 후속 처리가 필요. OrderService에서 직접 호출하면 강한 결합 + 새 기능 추가마다 수정 필요.</p>
+      <p class="decision-card__label">Decision</p>
+      <p class="decision-card__text"><code class="mono">@TransactionalEventListener(AFTER_COMMIT)</code>으로 트랜잭션 커밋 후에만 이벤트 실행. OrderService는 <code class="mono">OrderMatchedEvent</code>만 발행하고, 리스너에서 후속 처리.</p>
+      <p class="decision-card__label">Result</p>
+      <p class="decision-card__text">OrderService의 의존성에서 WebSocket/채팅/랭킹 서비스 제거. 새 기능 추가 시 리스너만 추가하면 됨 (OCP). 체결 실패 시 알림 미발행 &mdash; 데이터 정합성 보장.</p>
+      <pre class="code-block"><code class="language-java">// OrderService — 이벤트 발행만
+eventPublisher.publishEvent(OrderMatchedEvent.ofBuy(...));
+
+// Listener — 커밋 후에만 실행
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void handleOrderMatchedEvent(OrderMatchedEvent event) { ... }</code></pre>
+      <p style="margin-top:0.5rem"><a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-2-4-이벤트-기반-아키텍처-설계-체결-이벤트-느슨한-연결" target="_blank">관련 블로그</a></p>
+    </div>
+
+    <!-- 5 -->
+    <div id="kd-5" class="decision-card">
+      <p class="decision-card__number">05</p>
+      <h3 class="decision-card__title">엔티티 비즈니스 메서드 캡슐화 (@Setter 제거)</h3>
+      <p class="decision-card__label">Problem</p>
+      <p class="decision-card__text">@Setter로 필드를 직접 변경하면 잔고 검증 같은 비즈니스 규칙이 무시될 수 있다. 또한 JPA 연관관계(@ManyToOne)를 사용하면 비관적 락 시 부모까지 로딩되어 락 범위가 확장된다.</p>
+      <p class="decision-card__label">Decision</p>
+      <p class="decision-card__text">@Setter 제거, <code class="mono">deduct()</code>, <code class="mono">deposit()</code>, <code class="mono">addQuantity()</code> 등 비즈니스 메서드로만 상태 변경. Trade는 <code class="mono">updatable=false</code>로 불변 설계.</p>
+      <p class="decision-card__label">Result</p>
+      <p class="decision-card__text">비즈니스 규칙이 엔티티에 캡슐화 &mdash; 서비스 레이어에서 규칙 누락 불가. 각 엔티티가 독립적으로 비관적 락 획득 가능.</p>
+    </div>
+  </section>
+
+  <!-- Troubleshooting -->
+  <section id="troubleshooting" class="section">
+    <h2 class="section__title">Troubleshooting</h2>
+
+    <details id="ts-1" class="accordion">
+      <summary class="accordion__trigger">DDL-엔티티 PK 필드명 불일치로 CI 전체 실패</summary>
+      <div class="accordion__content">
+        <p><strong>증상:</strong> CI에서 전체 테스트 실패. DDL의 컬럼명과 JPA 엔티티 필드명이 매칭되지 않아 테이블 생성 자체가 실패.</p>
+        <p><strong>원인:</strong> DDL에서 PK를 <code class="mono">order_id</code>로 정의했는데, 엔티티에서는 <code class="mono">id</code>로 선언. Spring naming strategy가 <code class="mono">orderId &rarr; order_id</code>로 변환하는데, 필드명이 <code class="mono">id</code>면 <code class="mono">id</code>로 매핑되어 불일치.</p>
+        <p><strong>해결:</strong> 엔티티 PK 필드를 <code class="mono">id &rarr; orderId</code>로 변경. 이후 "DDL 우선 확인" 규칙을 팀 컨벤션에 추가.</p>
+        <p><strong>교훈:</strong> DDL이 진실의 원천(source of truth). 팀 프로젝트에서 DDL은 여러 팀원이 공유하는 계약이므로, 엔티티 변경이 DDL 변경보다 안전하다.</p>
+      </div>
+    </details>
+
+    <details id="ts-2" class="accordion">
+      <summary class="accordion__trigger">매도 시 비관적 락 누락으로 stale avgPrice 읽기</summary>
+      <div class="accordion__content">
+        <p><strong>증상:</strong> 매도 실현손익 계산에서 간헐적으로 잘못된 평균단가로 손익이 계산됨. 동시에 추가 매수와 매도가 발생하면 stale read.</p>
+        <p><strong>원인:</strong> 매도 흐름에서 일반 조회 후 avgPrice를 읽고, 이후 deductQuantity 호출. 조회~변경 사이에 다른 트랜잭션이 addQuantity를 실행하면 이미 읽은 값은 반영되지 않음.</p>
+        <p><strong>해결:</strong> 매도 시 포트폴리오 조회를 <code class="mono">findByVirtualAccountIdAndStockIdForUpdate()</code>로 변경. 조회 시점부터 변경 완료까지 전체 구간에 락 유지.</p>
+        <p><strong>교훈:</strong> 금액 관련 로직에서는 읽기부터 락을 걸어야 한다. 읽은 값이 다른 연산의 입력값이 되는 경우, 조회 시점에 이미 정합성이 깨질 수 있다.</p>
+      </div>
+    </details>
+
+    <details id="ts-3" class="accordion">
+      <summary class="accordion__trigger">트랜잭션 커밋 전 이벤트 발행으로 정합성 깨짐</summary>
+      <div class="accordion__content">
+        <p><strong>증상:</strong> 체결 과정에서 예외가 발생해 롤백됐는데, WebSocket으로 "체결 완료" 알림이 이미 전송됨.</p>
+        <p><strong>원인:</strong> 초기 <code class="mono">@EventListener</code>는 이벤트 발행 시점(트랜잭션 내부)에 즉시 실행. 이벤트 핸들러 실행 후 트랜잭션이 롤백될 수 있음.</p>
+        <p><strong>해결:</strong> <code class="mono">@EventListener &rarr; @TransactionalEventListener(AFTER_COMMIT)</code> 변경. 트랜잭션이 정상 커밋된 후에만 핸들러 실행.</p>
+        <p><strong>교훈:</strong> 이벤트 기반 아키텍처에서 "언제 발행하느냐"가 "무엇을 발행하느냐"만큼 중요하다. 금융 시스템에서는 데이터가 확정된 후에만 외부에 알려야 한다.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- Collaboration -->
+  <section id="collaboration" class="section">
+    <h2 class="section__title">Collaboration &mdash; 시세/종목 담당 팀원과의 협업</h2>
+
+    <div class="decision-card">
+      <p class="decision-card__number">문제</p>
+      <h3 class="decision-card__title">서로의 모듈이 동시에 개발 중 &mdash; 어떻게 독립적으로 진행할 것인가?</h3>
+      <p class="decision-card__text">나(주문/체결)는 현재가와 종목 정보가 필요하고, 팀원 B(시세/종목)는 체결 이벤트가 필요했다. 하지만 서로의 코드가 아직 없는 상태에서 개발을 시작해야 했다.</p>
+    </div>
+
+    <div class="flow">
+      <div id="collab-1" class="flow__step" data-step="1">
+        <p class="flow__label">Interface Contract</p>
+        <p class="flow__title">인터페이스 계약 먼저 정의</p>
+        <p class="flow__desc">
+          <code>MarketPriceProvider</code>, <code>StockInfoProvider</code>, <code>ExchangeRateProvider</code> 3개 인터페이스를 <code>domain/trading/common/</code>에 정의. "무엇을 줄 것인가"만 합의하고, "어떻게 구현할 것인가"는 각자 결정.
+        </p>
+        <pre class="code-block"><code class="language-java">// A가 정의, B가 구현
+public interface MarketPriceProvider {
+    BigDecimal getCurrentPrice(String stockCode);
+    String getCurrency(String stockCode);
+}
+
+public interface StockInfoProvider {
+    Stock getStock(Long stockId);
+    String getStockName(String stockCode);
+}</code></pre>
+      </div>
+
+      <div id="collab-2" class="flow__step" data-step="2">
+        <p class="flow__label">Independent Dev</p>
+        <p class="flow__title">Mock으로 각자 독립 개발</p>
+        <p class="flow__desc">
+          A는 테스트에서 <code>MarketPriceProvider</code>를 Mock으로 주입하여 B의 구현 없이 OrderService를 개발&middot;테스트. B는 한투 Open API 연동에 집중.
+        </p>
+        <pre class="code-block"><code class="language-java">// OrderServiceTest — B 없이 단위 테스트 가능
+given(marketPriceProvider.getCurrentPrice("005930"))
+    .willReturn(new BigDecimal("70000"));
+given(stockInfoProvider.getStock(1L))
+    .willReturn(mockStock);</code></pre>
+      </div>
+
+      <div id="collab-3" class="flow__step" data-step="3">
+        <p class="flow__label">Integration</p>
+        <p class="flow__title">B의 구현 머지 후 통합</p>
+        <p class="flow__desc">
+          B의 <code>MarketService implements MarketPriceProvider</code>, <code>StockService implements StockInfoProvider</code> 머지 후, OrderService의 파라미터를 <code>stockCode &rarr; stockId</code>로 변경. 통합 테스트로 연동 검증.
+        </p>
+      </div>
+
+      <div id="collab-4" class="flow__step" data-step="4">
+        <p class="flow__label">Shared Rules</p>
+        <p class="flow__title">공유 자원 충돌 방지 규칙</p>
+        <p class="flow__desc">
+          <code>ErrorCode</code>는 각자 prefix 범위에서만 추가 (<code>ORDER_*</code>는 A, <code>MARKET_*</code>는 B). 같은 파일 수정 시 먼저 merge한 사람 기준, 나중 사람이 rebase. 비관적 락 순서(Account &rarr; Portfolio &rarr; Order) 규칙을 B의 지정가 체결 엔진에도 적용.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Team Impact -->
+  <section id="team-impact" class="section">
+    <h2 class="section__title">Team Impact</h2>
+    <ul class="impact-list">
+      <li><strong>API 응답 규격 통일</strong> &mdash; <code class="mono">ApiResponse&lt;T&gt;</code> 구조를 제안하여 팀 전체(6인) 적용. 프론트엔드 파싱 로직 단일화. <a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-1-API-응답-구조-통일과-에러-코드-설계" target="_blank">블로그</a></li>
+      <li><strong>ErrorCode 체계 설계</strong> &mdash; 도메인별 prefix (<code class="mono">ORDER_*</code>, <code class="mono">MARKET_*</code>)로 에러 코드 구분. 숫자 대신 의미 있는 이름 사용.</li>
+      <li><strong>에러 처리 가이드 작성</strong> &mdash; <code class="mono">BusinessException</code> + <code class="mono">ErrorCode</code> + <code class="mono">GlobalExceptionHandler</code> 패턴으로 팀 전체 에러 처리 통일. Service에서 throw만 하면 자동 응답되는 구조를 설계하고 노션에 문서화. <a class="blog-badge" href="https://mousy-filament-7d5.notion.site/_-32d408702c75805bbdead40e8a277008?source=copy_link" target="_blank">노션 문서</a></li>
+      <li><strong>DTO 계층 분리 가이드 작성</strong> &mdash; 패키지를 domain/web/global로 나누자고 제안하는 과정에서 "Service가 web의 DTO를 import하면 의존 방향이 꼬인다"는 문제를 발견. 직접 학습 후 Request/Response/Command/Info 4종의 분리 규칙을 노션에 문서화하여 팀을 설득&middot;적용. <a class="blog-badge" href="https://www.notion.so/DTO-334408702c75805aae6dcfc898ac8923?source=copy_link" target="_blank">노션 문서</a></li>
+      <li><strong>A-B 인터페이스 계약</strong> &mdash; <code class="mono">MarketPriceProvider</code>, <code class="mono">StockInfoProvider</code> 인터페이스 정의. 상대 모듈 미완성 시에도 독립 개발 가능.</li>
+      <li><strong>코딩 컨벤션 문서화</strong> &mdash; 패키지 규칙, 네이밍 규칙, DB 컨벤션, 락 순서 등을 문서(<code class="mono">trading-convention.md</code>)로 정리&middot;관리.</li>
+    </ul>
+  </section>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1f2937',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#30363d',
+      lineColor: '#58a6ff',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#0d1117'
+    }
+  });
+
+  function showFlow(type) {
+    document.querySelectorAll('.flow-panel').forEach(p => p.classList.remove('flow-panel--active'));
+    document.querySelectorAll('.flow-tab').forEach(t => t.classList.remove('flow-tab--active'));
+    document.getElementById('flow-' + type).classList.add('flow-panel--active');
+    event.target.classList.add('flow-tab--active');
+  }
+
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.querySelector('.theme-toggle');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = 'Dark';
+      mermaid.initialize({ theme: 'default' });
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = 'Light';
+      mermaid.initialize({ theme: 'dark' });
+    }
+    // Re-render mermaid diagrams
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.removeAttribute('data-processed');
+    });
+    mermaid.run();
+  }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js"></script>
+<script>
+  // TOC scroll spy
+  const tocLinks = document.querySelectorAll('.toc__link');
+  const tocIds = Array.from(tocLinks).map(l => l.getAttribute('href').slice(1));
+  const tocTargets = tocIds.map(id => document.getElementById(id)).filter(Boolean);
+
+  function updateToc() {
+    let current = '';
+    tocTargets.forEach(el => {
+      if (window.scrollY >= el.offsetTop - 160) {
+        current = el.id;
+      }
+    });
+    tocLinks.forEach(link => {
+      link.classList.remove('toc__link--active');
+      if (link.getAttribute('href') === '#' + current) {
+        link.classList.add('toc__link--active');
+      }
+    });
+  }
+
+  window.addEventListener('scroll', updateToc);
+  updateToc();
+</script>
+
+</body>
+</html>
