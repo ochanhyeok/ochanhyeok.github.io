@@ -39,6 +39,8 @@
         <li><a href="#ts-1" class="toc__link">ConcurrentHashMap NPE</a></li>
         <li><a href="#ts-2" class="toc__link">SQL 컬럼 불일치</a></li>
         <li><a href="#ts-3" class="toc__link">세션 고정 공격 방지</a></li>
+        <li><a href="#ts-4" class="toc__link">FilterChain 충돌</a></li>
+        <li><a href="#ts-5" class="toc__link">방문자 중복 카운트</a></li>
       </ul>
     </li>
     <li class="toc__item">
@@ -369,6 +371,26 @@ if (!"ADMIN".equals(type)) {
         <p><strong>교훈:</strong> 인증 성공 시 세션 ID를 반드시 갱신. AI 코드 리뷰(CodeRabbit) 도입으로 보안 취약점을 사전 발견 가능.</p>
       </div>
     </details>
+
+    <details id="ts-4" class="accordion">
+      <summary class="accordion__trigger">Security FilterChain 충돌 &mdash; Admin 로그인이 안 되는 문제</summary>
+      <div class="accordion__content">
+        <p><strong>증상:</strong> Admin 로그인 시 인증이 계속 풀리거나, 아예 <code>/admin</code> 경로 접근이 차단됨.</p>
+        <p><strong>원인:</strong> 팀원이 구현한 <code>SecurityConfigWeb</code>(<code>@Order(3)</code>)의 <code>anyRequest().authenticated()</code>가 <code>/admin/**</code> 경로까지 가로채서 JWT 인증을 강제. Admin은 세션 기반인데 JWT 필터가 먼저 동작하여 인증 실패.</p>
+        <p><strong>해결:</strong> Spring Security FilterChain을 3개로 분리. <code>SecurityConfigApi</code>(<code>@Order(1)</code>, <code>/api/**</code>), <code>AdminSecurityConfig</code>(<code>@Order(2)</code>, <code>/admin/**</code>), <code>SecurityConfigWeb</code>(<code>@Order(3)</code>, 나머지). 각각 <code>antMatcher</code>로 경로를 명시하여 범위를 격리.</p>
+        <p><strong>교훈:</strong> Spring Security에서 다중 인증 방식(세션 vs JWT)이 공존할 때, FilterChain의 <code>@Order</code>와 <code>antMatcher</code> 범위를 명확히 분리해야 한다. 특히 <code>anyRequest()</code>는 의도치 않은 경로까지 잡을 수 있다.</p>
+      </div>
+    </details>
+
+    <details id="ts-5" class="accordion">
+      <summary class="accordion__trigger">로컬 서버 재시작 시 방문자 중복 카운트</summary>
+      <div class="accordion__content">
+        <p><strong>증상:</strong> 개발 중 방문자 수가 비정상적으로 증가. 팀원들이 로컬 서버를 껐다 킬 때마다 새로운 세션이 생성되면서 같은 사람이 여러 번 카운트됨.</p>
+        <p><strong>원인:</strong> 세션 기반 1차 캐시(<code>visitorTracked</code>)는 서버 재시작 시 초기화. DB 중복 체크는 session_id 기반인데, 서버 재시작 시 새 JSESSIONID가 발급되어 동일 사용자가 새 방문자로 기록.</p>
+        <p><strong>해결:</strong> <code>INSERT IGNORE</code>로 DB 레벨 중복 방지를 최종 방어선으로 설정. 세션 캐시는 성능 최적화(DB 조회 감소)용이고, 진짜 중복 방지는 DB의 unique 제약이 담당하는 구조로 정리.</p>
+        <p><strong>교훈:</strong> 세션 기반 캐시는 서버 라이프사이클에 종속된다. 중복 방지의 최종 보장은 항상 DB 레벨에서 해야 한다.</p>
+      </div>
+    </details>
   </section>
 
   <!-- Test Strategy -->
@@ -458,10 +480,11 @@ assertThatCode(() -> scheduler.calculateDailyStatistics())
   <section id="team-impact" class="section">
     <h2 class="section__title">Team Impact</h2>
     <ul class="impact-list">
-      <li><strong>프로젝트 초기 세팅 전체</strong> &mdash; pom.xml, web.xml, root-context.xml, servlet-context.xml, Security 설정, Flyway Migration 기반 구축. 6인 팀이 즉시 개발 시작할 수 있도록 인프라 구성.</li>
+      <li><strong>프로젝트 초기 세팅 전체 (하루 소요)</strong> &mdash; Spring Boot와 달리 Legacy는 pom.xml 의존성 버전 호환성을 하나하나 확인하고, web.xml/root-context.xml/servlet-context.xml을 직접 구성해야 했다. Maven reload &rarr; TestController 실행 &rarr; 검증을 반복하며, 팀원들이 환경설정 없이 바로 개발할 수 있도록 세팅. 이 과정에서 Spring Boot가 자동으로 해주는 것들(설정 통합, 내장 Tomcat, 의존성 관리)의 가치를 체감.</li>
       <li><strong>ApiResponse&lt;T&gt; 표준화</strong> &mdash; <code>success()</code>, <code>error()</code>, <code>success(data, page)</code> 정적 팩토리 메서드로 팀 전체 REST API 응답 통일.</li>
       <li><strong>ErrorCode 체계 설계</strong> &mdash; 모듈별 접두사(C=공통, U=회원, A=관리자, P=결제, R=예약) 기반. 에러 코드 충돌 없이 각 팀원이 독립적으로 추가 가능.</li>
       <li><strong>Flyway Migration 21개</strong> &mdash; V1~V21까지 스키마 버전 관리. 팀원 간 버전 번호 충돌 방지를 위해 모듈별 버전 범위 사전 협의.</li>
+      <li><strong>Legacy 환경설정 가이드 작성</strong> &mdash; IntelliJ에서 Spring Legacy + Tomcat 환경 구성법을 스크린샷 포함 노션 문서로 작성. 팀원들이 각자 CRUD 연습할 때 이 문서 보고 환경 구성. <a class="blog-badge" href="https://mousy-filament-7d5.notion.site/IntelliJ-910408702c7583d89396810ab7211a50?source=copy_link" target="_blank">노션 문서</a></li>
       <li><strong>기술 문서 4종 작성</strong> &mdash; 관리자 아키텍처 문서(43KB), 쿼리 최적화 문서, 특가 API 가이드, IP 추적 가이드.</li>
     </ul>
   </section>
