@@ -549,7 +549,7 @@ given(stockInfoProvider.getStock(1L))
       let current = '';
       tocIds.forEach(id => {
         const el = document.getElementById(id);
-        if (el && window.scrollY >= el.offsetTop - 100) {
+        if (el && window.scrollY >= el.offsetTop - 200) {
           current = id;
         }
       });
@@ -563,7 +563,7 @@ given(stockInfoProvider.getStock(1L))
 
     window.addEventListener('scroll', updateToc);
     updateToc();
-  }, 3000);
+  }, 1500);
 </script>
 
 </body>
