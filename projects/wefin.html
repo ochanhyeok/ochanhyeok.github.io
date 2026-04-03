@@ -540,28 +540,30 @@ given(stockInfoProvider.getStock(1L))
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js"></script>
 <script>
-  // TOC scroll spy
-  const tocLinks = document.querySelectorAll('.toc__link');
-  const tocIds = Array.from(tocLinks).map(l => l.getAttribute('href').slice(1));
-  const tocTargets = tocIds.map(id => document.getElementById(id)).filter(Boolean);
+  // TOC scroll spy — Mermaid 렌더링 후 실행
+  setTimeout(() => {
+    const tocLinks = document.querySelectorAll('.toc__link');
+    const tocIds = Array.from(tocLinks).map(l => l.getAttribute('href').slice(1));
 
-  function updateToc() {
-    let current = '';
-    tocTargets.forEach(el => {
-      if (window.scrollY >= el.offsetTop - 160) {
-        current = el.id;
-      }
-    });
-    tocLinks.forEach(link => {
-      link.classList.remove('toc__link--active');
-      if (link.getAttribute('href') === '#' + current) {
-        link.classList.add('toc__link--active');
-      }
-    });
-  }
+    function updateToc() {
+      let current = '';
+      tocIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && window.scrollY >= el.offsetTop - 200) {
+          current = id;
+        }
+      });
+      tocLinks.forEach(link => {
+        link.classList.remove('toc__link--active');
+        if (link.getAttribute('href') === '#' + current) {
+          link.classList.add('toc__link--active');
+        }
+      });
+    }
 
-  window.addEventListener('scroll', updateToc);
-  updateToc();
+    window.addEventListener('scroll', updateToc);
+    updateToc();
+  }, 1500);
 </script>
 
 </body>
