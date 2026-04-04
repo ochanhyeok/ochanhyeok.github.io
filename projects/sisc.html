@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SISC | 오찬혁 포트폴리오</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<!-- TOC -->
+<nav class="toc">
+  <ul class="toc__list">
+    <li class="toc__item">
+      <a href="#overview" class="toc__link">Overview</a>
+    </li>
+    <li class="toc__item">
+      <a href="#key-decision" class="toc__link">Key Decision</a>
+    </li>
+    <li class="toc__item">
+      <a href="#growth" class="toc__link">Growth</a>
+      <ul class="toc__sub">
+        <li><a href="#growth-1" class="toc__link">ErrorCode/ApiResponse</a></li>
+        <li><a href="#growth-2" class="toc__link">패키지 구조/DTO 분리</a></li>
+        <li><a href="#growth-3" class="toc__link">테스트 코드</a></li>
+        <li><a href="#growth-4" class="toc__link">협업 방식</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+<div class="container">
+
+  <a href="../index.html" class="back-link">&larr; 돌아가기</a>
+
+  <!-- Header -->
+  <header class="detail-header">
+    <h1 class="detail-header__title">SISC &mdash; 투자연구회 웹플랫폼</h1>
+    <p class="detail-header__meta">2025.09 ~ 2025.12 &middot; 18인 팀 (백엔드 6인)</p>
+    <p class="detail-header__meta">담당: 출석(Attendance) 모듈 전체 설계&middot;구현 &mdash; 첫 팀 프로젝트</p>
+    <p class="detail-header__meta" style="margin-top: 0.5rem;">Spring Boot 3.5 &middot; Java 21 &middot; JPA &middot; PostgreSQL &middot; JWT + OAuth2 &middot; JUnit 5</p>
+    <div class="detail-header__links">
+      <a href="https://github.com/SISC-IT/sisc-web" target="_blank">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Overview -->
+  <section id="overview" class="section">
+    <h2 class="section__title">Overview</h2>
+    <div class="decision-card">
+      <p class="decision-card__text" style="line-height:1.8">
+        동아리 운영을 위한 출석 관리&middot;게시판&middot;모의투자&middot;AI 퀀트봇을 통합한 웹플랫폼.
+        나는 <strong>출석(Attendance) 모듈 전체</strong>를 담당했다 &mdash; Session/Round/Attendance 3계층 엔티티 설계, GPS 기반 위치 검증, 체크인 플로우, 테스트 코드까지 약 4,000줄, 34개 파일.
+      </p>
+      <p class="decision-card__text" style="margin-top:0.75rem;line-height:1.8">
+        이 프로젝트는 <strong>첫 팀 프로젝트</strong>였다. 기술적으로 대단한 걸 했다기보다, 여기서 경험하고 배운 것들이 이후 WeFin과 Flyway에서 내가 주도적으로 도입한 것들의 기반이 되었다.
+      </p>
+    </div>
+  </section>
+
+  <!-- Key Decision -->
+  <section id="key-decision" class="section">
+    <h2 class="section__title">Key Decision &mdash; Haversine 공식 기반 GPS 출석 검증</h2>
+
+    <div class="decision-card">
+      <p class="decision-card__label">Problem</p>
+      <p class="decision-card__text">출석 시 위치 검증이 필요하지만, 동아리 프로젝트라 외부 API 비용을 쓸 수 없었다.</p>
+      <p class="decision-card__label">Decision</p>
+      <p class="decision-card__text">출석 검증에 필요한 건 "두 좌표 간 거리가 반경 내인가" 하나뿐이므로, Haversine 공식을 <code>@Embeddable Location</code>에 직접 구현. Google Maps API나 PostGIS 없이 외부 의존 0.</p>
+      <p class="decision-card__label">Result</p>
+      <p class="decision-card__text"><code>LocationTest</code>에서 서울-부산 거리 검증 통과. <code>isWithinRange()</code>에서 radiusMeters가 null이면 검증 비활성화 (graceful degradation).</p>
+      <pre class="code-block"><code class="language-java">// Location.java — Haversine 거리 계산
+private static final double EARTH_RADIUS_KM = 6371.0;
+
+public double distanceTo(double targetLat, double targetLng) {
+    double dLat = Math.toRadians(targetLat - this.latitude);
+    double dLng = Math.toRadians(targetLng - this.longitude);
+    double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+        + Math.cos(Math.toRadians(this.latitude))
+        * Math.cos(Math.toRadians(targetLat))
+        * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return EARTH_RADIUS_KM * c * 1000; // meters
+}
+
+public boolean isWithinRange(double lat, double lng) {
+    if (this.radiusMeters == null) return true;
+    return distanceTo(lat, lng) <= this.radiusMeters;
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- Growth -->
+  <section id="growth" class="section">
+    <h2 class="section__title">Growth &mdash; 이 프로젝트에서 다음 프로젝트로</h2>
+
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1.5rem;line-height:1.6">
+      SISC에서 처음 접하고 좋다고 느낀 것들을, 다음 프로젝트에서 <strong>직접 설계하여 팀에 제안&middot;적용</strong>했다.
+    </p>
+
+    <div id="growth-1" class="decision-card" style="margin-bottom:1rem">
+      <p class="decision-card__number">SISC에서 배움</p>
+      <h3 class="decision-card__title">ErrorCode / ApiResponse 체계</h3>
+      <p class="decision-card__text" style="margin-bottom:0.5rem">SISC에서 팀의 공통 <code>ErrorCode</code> enum과 <code>ApiResponse</code> 구조를 처음 접했다. 일관된 에러 응답이 프론트엔드 파싱을 얼마나 단순하게 만드는지 체감.</p>
+      <p class="decision-card__label">다음 프로젝트에서</p>
+      <p class="decision-card__text"><strong>WeFin</strong>: <code>BusinessException</code> + <code>ErrorCode</code> + <code>GlobalExceptionHandler</code> 패턴을 직접 설계하고, 에러 처리 가이드를 노션에 문서화하여 팀 6인에게 공유&middot;적용.<br>
+      <strong>Flyway</strong>: 모듈별 접두사(C/U/A/P/R) 기반 ErrorCode 체계를 설계하여 에러 코드 충돌 없이 각 팀원이 독립적으로 추가할 수 있게 구성.</p>
+    </div>
+
+    <div id="growth-2" class="decision-card" style="margin-bottom:1rem">
+      <p class="decision-card__number">SISC에서 배움</p>
+      <h3 class="decision-card__title">패키지 구조와 DTO 계층 분리</h3>
+      <p class="decision-card__text" style="margin-bottom:0.5rem">Layered Architecture로 Controller &rarr; Service &rarr; Repository를 분리하는 구조를 처음 실습했다. 계층별 역할 분리의 중요성을 체감.</p>
+      <p class="decision-card__label">다음 프로젝트에서</p>
+      <p class="decision-card__text"><strong>WeFin</strong>: domain/web/global 3계층 분리를 제안. "Service가 web의 DTO를 import하면 의존 방향이 꼬인다"는 문제를 발견하고, Request/Response/Command/Info 4종 DTO 분리 규칙을 노션에 문서화하여 팀에 설득&middot;적용.</p>
+    </div>
+
+    <div id="growth-3" class="decision-card" style="margin-bottom:1rem">
+      <p class="decision-card__number">SISC에서 배움</p>
+      <h3 class="decision-card__title">테스트 코드 작성</h3>
+      <p class="decision-card__text" style="margin-bottom:0.5rem">JUnit 5 + Mockito로 단위 테스트를 처음 작성했다. LocationTest에서 Haversine 계산 정확도를 검증하며, 테스트가 코드 신뢰도를 얼마나 높이는지 체감.</p>
+      <p class="decision-card__label">다음 프로젝트에서</p>
+      <p class="decision-card__text"><strong>WeFin</strong>: OrderServiceTest, PortfolioServiceTest 등 비즈니스 로직 테스트를 BDDMockito로 작성. 새 기능마다 테스트 코드를 함께 작성하는 습관.<br>
+      <strong>Flyway</strong>: SafeCount 부분 실패 테스트, 스케줄러 예외 복원력 테스트 등 엣지 케이스까지 커버.</p>
+    </div>
+
+    <div id="growth-4" class="decision-card">
+      <p class="decision-card__number">SISC에서 배움</p>
+      <h3 class="decision-card__title">협업 방식</h3>
+      <p class="decision-card__text" style="margin-bottom:0.5rem">User 모듈과 <code>@ManyToOne</code> FK로 직접 연결하여 개발했다. 통합 시 엔티티 변경이 상대 모듈에 영향을 주는 결합도 문제를 경험.</p>
+      <p class="decision-card__label">다음 프로젝트에서</p>
+      <p class="decision-card__text"><strong>WeFin</strong>: <code>MarketPriceProvider</code>, <code>StockInfoProvider</code> 인터페이스 계약 + ID 참조 방식으로 모듈 간 결합도를 낮춤. Mock으로 독립 개발 &rarr; 머지 후 통합하는 워크플로우 도입.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js"></script>
+<script>
+  // TOC scroll spy
+  const tocLinks = document.querySelectorAll('.toc__link');
+  const tocIds = Array.from(tocLinks).map(l => l.getAttribute('href').slice(1));
+
+  function updateToc() {
+    let current = '';
+    for (const id of tocIds) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (el.getBoundingClientRect().top <= 200) {
+        current = id;
+      }
+    }
+    tocLinks.forEach(link => {
+      link.classList.remove('toc__link--active');
+      if (link.getAttribute('href') === '#' + current) {
+        link.classList.add('toc__link--active');
+      }
+    });
+  }
+
+  window.addEventListener('scroll', updateToc);
+  window.addEventListener('load', () => setTimeout(updateToc, 500));
+</script>
+
+</body>
+</html>

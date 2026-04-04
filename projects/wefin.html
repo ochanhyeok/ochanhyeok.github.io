@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" data-theme="dark">
+<html lang="ko" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,6 @@
 </head>
 <body>
 
-<button class="theme-toggle" onclick="toggleTheme()" aria-label="테마 전환">Light</button>
 
 <!-- TOC -->
 <nav class="toc">
@@ -499,15 +498,7 @@ given(stockInfoProvider.getStock(1L))
 <script>
   mermaid.initialize({
     startOnLoad: true,
-    theme: 'dark',
-    themeVariables: {
-      primaryColor: '#1f2937',
-      primaryTextColor: '#e6edf3',
-      primaryBorderColor: '#30363d',
-      lineColor: '#58a6ff',
-      secondaryColor: '#161b22',
-      tertiaryColor: '#0d1117'
-    }
+    theme: 'default'
   });
 
   function showFlow(type) {
@@ -517,24 +508,6 @@ given(stockInfoProvider.getStock(1L))
     event.target.classList.add('flow-tab--active');
   }
 
-  function toggleTheme() {
-    const html = document.documentElement;
-    const btn = document.querySelector('.theme-toggle');
-    if (html.getAttribute('data-theme') === 'dark') {
-      html.setAttribute('data-theme', 'light');
-      btn.textContent = 'Dark';
-      mermaid.initialize({ theme: 'default' });
-    } else {
-      html.setAttribute('data-theme', 'dark');
-      btn.textContent = 'Light';
-      mermaid.initialize({ theme: 'dark' });
-    }
-    // Re-render mermaid diagrams
-    document.querySelectorAll('.mermaid').forEach(el => {
-      el.removeAttribute('data-processed');
-    });
-    mermaid.run();
-  }
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" data-theme="dark">
+<html lang="ko" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +11,6 @@
 </head>
 <body>
 
-<button class="theme-toggle" onclick="toggleTheme()" aria-label="테마 전환">Light</button>
 
 <div class="container">
 
@@ -69,44 +68,32 @@
       </div>
     </article>
 
-    <!-- SISC (placeholder) -->
+    <!-- SISC -->
     <article class="project-card">
       <div class="project-card__header">
         <span class="project-card__name">SISC</span>
       </div>
-      <p class="project-card__desc">투자연구회 웹플랫폼</p>
+      <p class="project-card__desc">투자연구회 웹플랫폼 &mdash; 출석(Attendance) 모듈 전체 설계&middot;구현</p>
       <ul class="project-card__points">
-        <li>Haversine 공식 기반 GPS 출석 체크</li>
+        <li>Haversine 공식 기반 GPS 출석 검증 (외부 API 없이 자체 구현)</li>
+        <li>첫 팀 프로젝트 경험 &rarr; WeFin/Flyway 설계 방향의 기반</li>
       </ul>
-      <p class="project-card__stack">Spring Boot &middot; JPA &middot; PostgreSQL</p>
+      <p class="project-card__stack">Spring Boot 3.5 &middot; Java 21 &middot; JPA &middot; PostgreSQL &middot; JWT</p>
       <div class="project-card__links">
-        <a href="#">상세 보기 (준비중)</a>
-        <a href="https://github.com/ochanhyeok/sisc" target="_blank">GitHub</a>
+        <a href="projects/sisc.html">상세 보기</a>
+        <a href="https://github.com/SISC-IT/sisc-web" target="_blank">GitHub</a>
       </div>
     </article>
   </section>
 
   <!-- Skills -->
   <section class="section">
-    <h2 class="section__title">Skills & Certifications</h2>
+    <h2 class="section__title">Certifications</h2>
     <div class="skills">
-      <p style="margin-bottom: 0.5rem;">
+      <p>
         <span class="skill-tag">정보처리기사</span>
         <span class="skill-tag">SQLD</span>
         <span class="skill-tag">OPIc IM2</span>
-      </p>
-      <p>
-        <span class="skill-tag">Java</span>
-        <span class="skill-tag">Spring Boot</span>
-        <span class="skill-tag">Spring Legacy</span>
-        <span class="skill-tag">JPA</span>
-        <span class="skill-tag">QueryDSL</span>
-        <span class="skill-tag">PostgreSQL</span>
-        <span class="skill-tag">MariaDB</span>
-        <span class="skill-tag">JUnit 5</span>
-        <span class="skill-tag">Git</span>
-        <span class="skill-tag">Docker</span>
-        <span class="skill-tag">Jira</span>
       </p>
     </div>
   </section>
@@ -122,19 +109,6 @@
 
 </div>
 
-<script>
-function toggleTheme() {
-  const html = document.documentElement;
-  const btn = document.querySelector('.theme-toggle');
-  if (html.getAttribute('data-theme') === 'dark') {
-    html.setAttribute('data-theme', 'light');
-    btn.textContent = 'Dark';
-  } else {
-    html.setAttribute('data-theme', 'dark');
-    btn.textContent = 'Light';
-  }
-}
-</script>
 
 </body>
 </html>

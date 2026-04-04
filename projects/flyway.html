@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" data-theme="dark">
+<html lang="ko" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,6 @@
 </head>
 <body>
 
-<button class="theme-toggle" onclick="toggleTheme()" aria-label="테마 전환">Light</button>
 
 <!-- TOC -->
 <nav class="toc">
@@ -446,7 +445,7 @@ assertThatCode(() -> scheduler.calculateDailyStatistics())
       <div class="flow__step" data-step="4">
         <p class="flow__label">Database</p>
         <p class="flow__title">AWS RDS (MariaDB)</p>
-        <p class="flow__desc">RDS 엔드포인트로 연결. EC2 보안 그룹에서 RDS 접근 허용. Flyway Migration(V1~V21)으로 스키마 버전 관리.</p>
+        <p class="flow__desc">RDS 엔드포인트로 연결. EC2 보안 그룹에서 RDS 접근 허용. </p>
       </div>
     </div>
   </section>
@@ -483,7 +482,6 @@ assertThatCode(() -> scheduler.calculateDailyStatistics())
       <li><strong>프로젝트 초기 세팅 전체 (하루 소요)</strong> &mdash; Spring Boot와 달리 Legacy는 pom.xml 의존성 버전 호환성을 하나하나 확인하고, web.xml/root-context.xml/servlet-context.xml을 직접 구성해야 했다. Maven reload &rarr; TestController 실행 &rarr; 검증을 반복하며, 팀원들이 환경설정 없이 바로 개발할 수 있도록 세팅. 이 과정에서 Spring Boot가 자동으로 해주는 것들(설정 통합, 내장 Tomcat, 의존성 관리)의 가치를 체감.</li>
       <li><strong>ApiResponse&lt;T&gt; 표준화</strong> &mdash; <code>success()</code>, <code>error()</code>, <code>success(data, page)</code> 정적 팩토리 메서드로 팀 전체 REST API 응답 통일.</li>
       <li><strong>ErrorCode 체계 설계</strong> &mdash; 모듈별 접두사(C=공통, U=회원, A=관리자, P=결제, R=예약) 기반. 에러 코드 충돌 없이 각 팀원이 독립적으로 추가 가능.</li>
-      <li><strong>Flyway Migration 21개</strong> &mdash; V1~V21까지 스키마 버전 관리. 팀원 간 버전 번호 충돌 방지를 위해 모듈별 버전 범위 사전 협의.</li>
       <li><strong>Legacy 환경설정 가이드 작성</strong> &mdash; IntelliJ에서 Spring Legacy + Tomcat 환경 구성법을 스크린샷 포함 노션 문서로 작성. 팀원들이 각자 CRUD 연습할 때 이 문서 보고 환경 구성. <a class="blog-badge" href="https://mousy-filament-7d5.notion.site/IntelliJ-910408702c7583d89396810ab7211a50?source=copy_link" target="_blank">노션 문서</a></li>
       <li><strong>쿼리 최적화 과정 문서화</strong> &mdash; 19초 &rarr; 0.019초 최적화 과정을 EXPLAIN 분석부터 해결까지 노션에 문서화. <a class="blog-badge" href="https://mousy-filament-7d5.notion.site/FLIGHT_QUERY_OPTIMIZATION-336408702c758054b95fdad48b55f661?source=copy_link" target="_blank">노션 문서</a></li>
     </ul>
@@ -494,15 +492,7 @@ assertThatCode(() -> scheduler.calculateDailyStatistics())
 <script>
   mermaid.initialize({
     startOnLoad: true,
-    theme: 'dark',
-    themeVariables: {
-      primaryColor: '#1f2937',
-      primaryTextColor: '#e6edf3',
-      primaryBorderColor: '#30363d',
-      lineColor: '#58a6ff',
-      secondaryColor: '#161b22',
-      tertiaryColor: '#0d1117'
-    }
+    theme: 'default'
   });
 
   function showFlow(type) {
@@ -512,23 +502,6 @@ assertThatCode(() -> scheduler.calculateDailyStatistics())
     event.target.classList.add('flow-tab--active');
   }
 
-  function toggleTheme() {
-    const html = document.documentElement;
-    const btn = document.querySelector('.theme-toggle');
-    if (html.getAttribute('data-theme') === 'dark') {
-      html.setAttribute('data-theme', 'light');
-      btn.textContent = 'Dark';
-      mermaid.initialize({ theme: 'default' });
-    } else {
-      html.setAttribute('data-theme', 'dark');
-      btn.textContent = 'Light';
-      mermaid.initialize({ theme: 'dark' });
-    }
-    document.querySelectorAll('.mermaid').forEach(el => {
-      el.removeAttribute('data-processed');
-    });
-    mermaid.run();
-  }
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
