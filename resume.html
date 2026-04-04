@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오찬혁 이력서</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    @page { size: A4; margin: 0; }
+
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      color: #1f2328;
+      background: #fff;
+      line-height: 1.6;
+      font-size: 9.5pt;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 17mm 21mm;
+    }
+
+    a { color: #0969da; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header */
+    .header { margin-bottom: 12pt; border-bottom: 1.5pt solid #1f2328; padding-bottom: 10pt; }
+    .header__name { font-size: 20pt; font-weight: 800; letter-spacing: -0.5pt; }
+    .header__role { font-size: 10.5pt; color: #656d76; margin-top: 2pt; }
+    .header__intro { font-size: 9pt; color: #656d76; margin-top: 6pt; line-height: 1.6; }
+    .header__contacts { display: flex; gap: 14pt; margin-top: 8pt; font-size: 8.5pt; color: #656d76; }
+
+    /* Section */
+    .section { margin-bottom: 11pt; }
+    .section__title {
+      font-size: 9pt; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #1f2328; border-bottom: 0.5pt solid #d0d7de;
+      padding-bottom: 3pt; margin-bottom: 8pt;
+    }
+
+    /* Growth */
+    .growth { font-size: 8.5pt; color: #656d76; line-height: 1.5; margin-bottom: 4pt; }
+    .growth strong { color: #1f2328; }
+
+    /* Project */
+    .project { margin-bottom: 10pt; }
+    .project__header { display: flex; justify-content: space-between; align-items: baseline; }
+    .project__name { font-size: 11pt; font-weight: 700; }
+    .project__period { font-size: 8pt; color: #656d76; }
+    .project__desc { font-size: 8.5pt; color: #656d76; margin: 2pt 0; }
+    .project__role { font-size: 8.5pt; color: #1f2328; margin-bottom: 4pt; }
+    .project__points { list-style: none; padding-left: 0; }
+    .project__points li {
+      font-size: 8.5pt; color: #1f2328; padding: 1pt 0 1pt 10pt;
+      position: relative; line-height: 1.6;
+    }
+    .project__points li::before {
+      content: "\2022"; position: absolute; left: 0; color: #656d76;
+    }
+    .project__stack { font-size: 7.5pt; color: #8b949e; margin-top: 3pt; }
+    .project__links { font-size: 7.5pt; margin-top: 2pt; }
+
+    /* Education & Cert */
+    .edu-item { font-size: 8.5pt; margin-bottom: 2pt; }
+    .edu-item__name { font-weight: 600; }
+    .edu-item__detail { color: #656d76; }
+
+    .cert-list { display: flex; gap: 10pt; font-size: 8.5pt; }
+    .cert-item { color: #1f2328; }
+
+    /* Portfolio link */
+    .portfolio-link {
+      display: block; text-align: center; margin-top: 8pt; padding: 6pt;
+      border: 1pt solid #d0d7de; border-radius: 4pt; font-size: 9pt; color: #0969da;
+    }
+
+    @media print {
+      body { padding: 12mm 18mm; }
+      a { color: #0969da !important; }
+      .portfolio-link { border-color: #0969da; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <h1 class="header__name">오찬혁</h1>
+    <p class="header__role">Backend Developer &middot; Java / Spring</p>
+    <p class="header__intro">읽기 좋은 코드와 함께 일하기 좋은 구조를 고민합니다.</p>
+    <div class="header__contacts">
+      <span>010-9267-6630</span>
+      <span>ochhs0829@naver.com</span>
+      <a href="https://github.com/ochanhyeok" target="_blank">github.com/ochanhyeok</a>
+      <a href="https://velog.io/@ochhs0829" target="_blank">velog.io/@ochhs0829</a>
+      <a href="https://ochanhyeok.github.io" target="_blank">ochanhyeok.github.io</a>
+    </div>
+  </header>
+
+  <!-- Growth -->
+  <section class="section">
+    <h2 class="section__title">Growth</h2>
+    <p class="growth">
+      <strong>SISC</strong>(첫 팀 프로젝트)에서 협업을 배우고 &rarr;
+      <strong>Flyway</strong>에서 직접 환경을 세팅하고 공통 모듈을 만들었지만 팀 전파가 부족했던 경험을 거쳐 &rarr;
+      <strong>WeFin</strong>에서 문서화로 구조를 제안하고 팀에 설득&middot;적용하는 방식으로 성장해왔습니다.
+    </p>
+  </section>
+
+  <!-- Projects -->
+  <section class="section">
+    <h2 class="section__title">Projects</h2>
+
+    <!-- WeFin -->
+    <div class="project">
+      <div class="project__header">
+        <span class="project__name">WeFin &mdash; 소셜 모의투자 플랫폼</span>
+        <span class="project__period">2026.03 ~ 2026.05 &middot; 6인</span>
+      </div>
+      <p class="project__desc">한국투자증권 Open API 기반 실시간 시세로 가상 매매를 경험하는 웹 트레이딩 시스템</p>
+      <p class="project__role">담당: 주문/체결/자산/랭킹 모듈 설계&middot;구현 &mdash; 시세/종목 담당 팀원과 인터페이스 계약 기반 협업</p>
+      <ul class="project__points">
+        <li>Order/Trade 1:N 분리 + 비관적 락(PESSIMISTIC_WRITE)으로 동시 주문 레이스 컨디션 해결</li>
+        <li>@TransactionalEventListener(AFTER_COMMIT) 기반 이벤트 아키텍처로 체결 후 도메인 간 느슨한 결합</li>
+        <li>totalBuyAmount 별도 저장으로 평균단가 소수점 오차 누적 방지</li>
+        <li>팀 API 응답 규격(ApiResponse), ErrorCode 체계, DTO 계층 분리 가이드를 문서화하여 팀 전체 적용</li>
+        <li>MarketPriceProvider, StockInfoProvider 인터페이스 계약 정의 &rarr; Mock 독립 개발 &rarr; 머지 후 통합</li>
+      </ul>
+      <p class="project__stack">Spring Boot 3 &middot; JPA &middot; QueryDSL 5.0 &middot; PostgreSQL &middot; JUnit 5 &middot; Mockito &middot; Testcontainers</p>
+      <p class="project__links"><a href="https://github.com/S0L-V/wefin-be">GitHub</a> &middot; <a href="https://velog.io/@ochhs0829/series/WeFin-%EA%B0%9C%EB%B0%9C%EA%B8%B0%EB%A1%9D">기술블로그(7편)</a> &middot; <a href="https://ochanhyeok.github.io/projects/wefin.html">상세 포트폴리오</a></p>
+    </div>
+
+    <!-- Flyway -->
+    <div class="project">
+      <div class="project__header">
+        <span class="project__name">Flyway &mdash; 항공권 예매 시스템</span>
+        <span class="project__period">2025.12 ~ 2026.02 &middot; 6인</span>
+      </div>
+      <p class="project__desc">항공편 검색&middot;예약&middot;결제 + 관리자 대시보드를 포함한 풀스택 시스템</p>
+      <p class="project__role">담당: Admin 백엔드 설계&middot;구현 + 프로젝트 초기 세팅 전체 &mdash; 예약/결제/검색 담당 팀원과 DB 스키마 기반 협업</p>
+      <ul class="project__points">
+        <li>항공편 조회 쿼리 최적화: EXPLAIN 분석 &rarr; 불필요한 JOIN 2개 제거 &rarr; 19초 &rarr; 0.019초 (1,000배 개선)</li>
+        <li>SafeCount 패턴(함수형 인터페이스)으로 대시보드 9개 메트릭 부분 장애 격리</li>
+        <li>Atomic SQL로 로그인 실패 카운트 + 조건부 잠금을 단일 UPDATE에서 원자적 처리</li>
+        <li>AWS EC2 + RDS + Nginx 배포. t2.micro OOM Kill 문제를 힙 다이어트(1GB&rarr;512MB) + Swap 2GB로 해결</li>
+        <li>Spring Legacy 초기 세팅(pom.xml, XML 설정, Tomcat) 하루 소요 &rarr; 팀원 환경설정 가이드 노션 문서화</li>
+      </ul>
+      <p class="project__stack">Spring MVC 5.3 &middot; MyBatis &middot; MariaDB &middot; Spring Security &middot; WebSocket &middot; AWS EC2/RDS</p>
+      <p class="project__links"><a href="https://github.com/S0L-V/flyway">GitHub</a> &middot; <a href="https://ochanhyeok.github.io/projects/flyway.html">상세 포트폴리오</a></p>
+    </div>
+
+    <!-- SISC -->
+    <div class="project">
+      <div class="project__header">
+        <span class="project__name">SISC &mdash; 투자연구회 웹플랫폼</span>
+        <span class="project__period">2025.09 ~ 2025.12 &middot; 18인 (BE 6인)</span>
+      </div>
+      <p class="project__desc">동아리 출석 관리&middot;게시판&middot;모의투자&middot;AI 퀀트봇 통합 플랫폼 (첫 팀 프로젝트)</p>
+      <p class="project__role">담당: 출석(Attendance) 모듈 전체 설계&middot;구현</p>
+      <ul class="project__points">
+        <li>Haversine 공식 기반 GPS 출석 검증 &mdash; 외부 API 없이 @Embeddable로 자체 구현</li>
+        <li>이 프로젝트에서 ErrorCode/ApiResponse 체계, 테스트 코드, 계층 분리를 처음 접하고 체감 &rarr; 이후 WeFin/Flyway에서 직접 설계&middot;제안</li>
+      </ul>
+      <p class="project__stack">Spring Boot 3.5 &middot; Java 21 &middot; JPA &middot; PostgreSQL &middot; JUnit 5</p>
+      <p class="project__links"><a href="https://github.com/SISC-IT/sisc-web">GitHub</a> &middot; <a href="https://ochanhyeok.github.io/projects/sisc.html">상세 포트폴리오</a></p>
+    </div>
+  </section>
+
+  <!-- Education & Certifications -->
+  <section class="section">
+    <h2 class="section__title">Education & Certifications</h2>
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div>
+        <p class="edu-item"><span class="edu-item__name">세종대학교</span> <span class="edu-item__detail">컴퓨터공학과 (2026.02 졸업)</span></p>
+        <p class="edu-item"><span class="edu-item__name">신한DS 금융SW아카데미</span></p>
+      </div>
+      <div class="cert-list">
+        <span class="cert-item">정보처리기사</span>
+        <span class="cert-item">SQLD</span>
+        <span class="cert-item">OPIc IM2</span>
+      </div>
+    </div>
+  </section>
+
+
+</body>
+</html>
