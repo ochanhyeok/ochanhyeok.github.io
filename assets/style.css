@@ -425,11 +425,25 @@ code, .mono {
 }
 .accordion__trigger:hover { border-color: var(--border-hover); }
 
+.accordion__trigger-text {
+  flex: 1;
+}
+
+.accordion__lesson {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
 .accordion__trigger::after {
   content: "+";
   font-size: 1.1rem;
   color: var(--text-muted);
   transition: transform 0.2s;
+  margin-left: 0.75rem;
+  flex-shrink: 0;
 }
 
 .accordion[open] .accordion__trigger::after {

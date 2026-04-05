@@ -35,11 +35,8 @@
     <li class="toc__item">
       <a href="#troubleshooting" class="toc__link">Troubleshooting</a>
       <ul class="toc__sub">
-        <li><a href="#ts-1" class="toc__link">ConcurrentHashMap NPE</a></li>
-        <li><a href="#ts-2" class="toc__link">SQL 컬럼 불일치</a></li>
-        <li><a href="#ts-3" class="toc__link">세션 고정 공격 방지</a></li>
-        <li><a href="#ts-4" class="toc__link">FilterChain 충돌</a></li>
-        <li><a href="#ts-5" class="toc__link">방문자 중복 카운트</a></li>
+        <li><a href="#ts-1" class="toc__link">FilterChain 충돌</a></li>
+        <li><a href="#ts-2" class="toc__link">세션 고정 공격 방지</a></li>
       </ul>
     </li>
     <li class="toc__item">
@@ -294,11 +291,11 @@ WHERE admin_id = #{adminId}</code></pre>
       <p class="decision-card__number">03</p>
       <h3 class="decision-card__title">항공편 조회 쿼리 최적화 (19초 &rarr; 0.019초, 1000배)</h3>
       <p class="decision-card__label">Problem</p>
-      <p class="decision-card__text">관리자 특가관리 페이지 진입 시 항공편 목록 조회에 19초 소요. EXPLAIN 분석 결과 <code>flight_number_aircraft_map</code>(622행)과 <code>flight</code>(183,769행) JOIN이 병목.</p>
+      <p class="decision-card__text">관리자 특가관리 페이지 진입 시 항공편 목록 조회에 19초 소요. 처음에는 "항공편 19만 건을 날짜순 정렬하는 비용"이라고 추측하고 방치했다.</p>
       <p class="decision-card__label">Decision</p>
-      <p class="decision-card__text">프론트엔드 코드를 확인하여 airline 정보가 미사용임을 확인한 후, 2개의 LEFT JOIN을 제거. 추가로 커버링 인덱스 생성.</p>
+      <p class="decision-card__text">EXPLAIN으로 직접 분석 &rarr; <code>flight_number_aircraft_map</code>(622행)과 <code>airline</code>과의 LEFT JOIN 2개가 진짜 병목임을 확인. 프론트엔드 코드(<code>promotions.js</code>)를 역으로 추적하여 airline 정보가 실제 화면에서 미사용임을 발견 &rarr; JOIN 제거.</p>
       <p class="decision-card__label">Result</p>
-      <p class="decision-card__text" style="margin-bottom:0.5rem">핵심 교훈: <strong>인덱스 추가보다 불필요한 JOIN 제거가 더 효과적일 수 있다.</strong></p>
+      <p class="decision-card__text" style="margin-bottom:0.5rem">핵심 교훈: <strong>성능 문제는 추측하지 말고 EXPLAIN으로 원인을 직접 확인해야 한다.</strong></p>
       <table style="font-size:0.8rem;color:var(--text-secondary);width:100%;border-collapse:collapse">
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:0.3rem 0">조회 시간</td><td>19초</td><td>&rarr;</td><td><strong style="color:var(--accent-green)">0.019초</strong></td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:0.3rem 0">스캔 행</td><td>183,769</td><td>&rarr;</td><td><strong style="color:var(--accent-green)">~100</strong></td></tr>
@@ -342,37 +339,7 @@ if (!"ADMIN".equals(type)) {
     <h2 class="section__title">Troubleshooting</h2>
 
     <details id="ts-1" class="accordion">
-      <summary class="accordion__trigger">ConcurrentHashMap NPE &mdash; WebSocket 핸드셰이크 실패</summary>
-      <div class="accordion__content">
-        <p><strong>증상:</strong> 대시보드 진입 시 WebSocket 연결 간헐적 실패, <code>NullPointerException at ConcurrentHashMap.putVal</code>.</p>
-        <p><strong>원인:</strong> HTTP 세션의 <code>adminName</code>, <code>adminRole</code> 속성이 없는 경우 null 반환. ConcurrentHashMap은 null 값을 허용하지 않아 NPE 발생.</p>
-        <p><strong>해결:</strong> null 체크 추가. 값이 있을 때만 attributes에 put.</p>
-        <p><strong>교훈:</strong> HashMap에서 ConcurrentHashMap으로 변경 시 null 처리가 달라진다. ConcurrentHashMap은 key/value 모두 null 불허.</p>
-      </div>
-    </details>
-
-    <details id="ts-2" class="accordion">
-      <summary class="accordion__trigger">방문자 상세 조회 SQL 컬럼 불일치</summary>
-      <div class="accordion__content">
-        <p><strong>증상:</strong> "오늘 방문자" 목록 조회 시 <code>Unknown column 'up.name'</code> SQL 에러.</p>
-        <p><strong>원인:</strong> <code>user_profile</code> 테이블에 <code>name</code> 컬럼이 없고 <code>first_name + last_name</code>으로 분리. 다른 팀원이 설계한 스키마를 잘못 참조.</p>
-        <p><strong>해결:</strong> <code>CONCAT + COALESCE</code>로 null-safe 이름 조합, <code>NULLIF(TRIM(...))</code>로 빈 문자열 처리.</p>
-        <p><strong>교훈:</strong> 다른 팀원 테이블을 JOIN할 때 반드시 실제 DDL을 확인. <code>name</code> vs <code>first_name + last_name</code> 같은 차이는 사전 합의 필요.</p>
-      </div>
-    </details>
-
-    <details id="ts-3" class="accordion">
-      <summary class="accordion__trigger">세션 고정 공격(Session Fixation) 방지 &mdash; CodeRabbit 리뷰</summary>
-      <div class="accordion__content">
-        <p><strong>증상:</strong> CodeRabbit AI 리뷰에서 로그인 시 기존 세션 재사용으로 세션 고정 공격 취약 지적.</p>
-        <p><strong>원인:</strong> 로그인 전 JSESSIONID가 로그인 후에도 유지되면, 공격자가 미리 심어둔 세션 ID로 관리자 권한 탈취 가능.</p>
-        <p><strong>해결:</strong> 로그인 성공 시 <code>oldSession.invalidate()</code> &rarr; <code>getSession(true)</code>로 JSESSIONID 갱신.</p>
-        <p><strong>교훈:</strong> 인증 성공 시 세션 ID를 반드시 갱신. AI 코드 리뷰(CodeRabbit) 도입으로 보안 취약점을 사전 발견 가능.</p>
-      </div>
-    </details>
-
-    <details id="ts-4" class="accordion">
-      <summary class="accordion__trigger">Security FilterChain 충돌 &mdash; Admin 로그인이 안 되는 문제</summary>
+      <summary class="accordion__trigger"><span class="accordion__trigger-text">Security FilterChain 충돌 &mdash; Admin 로그인이 안 되는 문제<span class="accordion__lesson">다중 인증 방식 공존 시 @Order와 antMatcher로 범위 격리 필수</span></span></summary>
       <div class="accordion__content">
         <p><strong>증상:</strong> Admin 로그인 시 인증이 계속 풀리거나, 아예 <code>/admin</code> 경로 접근이 차단됨.</p>
         <p><strong>원인:</strong> 팀원이 구현한 <code>SecurityConfigWeb</code>(<code>@Order(3)</code>)의 <code>anyRequest().authenticated()</code>가 <code>/admin/**</code> 경로까지 가로채서 JWT 인증을 강제. Admin은 세션 기반인데 JWT 필터가 먼저 동작하여 인증 실패.</p>
@@ -381,15 +348,16 @@ if (!"ADMIN".equals(type)) {
       </div>
     </details>
 
-    <details id="ts-5" class="accordion">
-      <summary class="accordion__trigger">로컬 서버 재시작 시 방문자 중복 카운트</summary>
+    <details id="ts-2" class="accordion">
+      <summary class="accordion__trigger"><span class="accordion__trigger-text">세션 고정 공격(Session Fixation) 방지 &mdash; CodeRabbit 리뷰<span class="accordion__lesson">인증 성공 시 세션 ID 갱신은 보안의 기본</span></span></summary>
       <div class="accordion__content">
-        <p><strong>증상:</strong> 개발 중 방문자 수가 비정상적으로 증가. 팀원들이 로컬 서버를 껐다 킬 때마다 새로운 세션이 생성되면서 같은 사람이 여러 번 카운트됨.</p>
-        <p><strong>원인:</strong> 세션 기반 1차 캐시(<code>visitorTracked</code>)는 서버 재시작 시 초기화. DB 중복 체크는 session_id 기반인데, 서버 재시작 시 새 JSESSIONID가 발급되어 동일 사용자가 새 방문자로 기록.</p>
-        <p><strong>해결:</strong> <code>INSERT IGNORE</code>로 DB 레벨 중복 방지를 최종 방어선으로 설정. 세션 캐시는 성능 최적화(DB 조회 감소)용이고, 진짜 중복 방지는 DB의 unique 제약이 담당하는 구조로 정리.</p>
-        <p><strong>교훈:</strong> 세션 기반 캐시는 서버 라이프사이클에 종속된다. 중복 방지의 최종 보장은 항상 DB 레벨에서 해야 한다.</p>
+        <p><strong>증상:</strong> CodeRabbit AI 리뷰에서 로그인 시 기존 세션 재사용으로 세션 고정 공격 취약 지적.</p>
+        <p><strong>원인:</strong> 로그인 전 JSESSIONID가 로그인 후에도 유지되면, 공격자가 미리 심어둔 세션 ID로 관리자 권한 탈취 가능.</p>
+        <p><strong>해결:</strong> 로그인 성공 시 <code>oldSession.invalidate()</code> &rarr; <code>getSession(true)</code>로 JSESSIONID 갱신.</p>
+        <p><strong>교훈:</strong> 인증 성공 시 세션 ID를 반드시 갱신. AI 코드 리뷰(CodeRabbit) 도입으로 보안 취약점을 사전 발견 가능.</p>
       </div>
     </details>
+
   </section>
 
   <!-- Test Strategy -->
@@ -397,11 +365,11 @@ if (!"ADMIN".equals(type)) {
     <h2 class="section__title">Test Strategy</h2>
 
     <div class="decision-card">
+      <p class="decision-card__text" style="margin-bottom:1rem;font-style:italic;color:var(--text-secondary)">&ldquo;커버리지 숫자보다 <strong>"이 로직이 예외 상황에서도 의도대로 동작하는가"</strong>를 검증하는 시나리오 중심 테스트를 지향한다.&rdquo;</p>
+
       <p class="decision-card__label">도구</p>
       <p class="decision-card__text">JUnit 5 + Mockito (BDDMockito) + AssertJ + ArgumentCaptor</p>
 
-      <p class="decision-card__label" style="margin-top:1rem">테스트 파일 7개</p>
-      <p class="decision-card__text" style="margin-bottom:0.5rem">Service 단위 테스트 3개 + Controller 테스트 4개</p>
 
       <p class="decision-card__label" style="margin-top:0.75rem">핵심 패턴: SafeCount 부분 실패 테스트</p>
       <pre class="code-block"><code class="language-java">// 9개 메트릭 중 1개만 실패시키고 나머지 정상 확인

@@ -35,9 +35,8 @@
     <li class="toc__item">
       <a href="#troubleshooting" class="toc__link">Troubleshooting</a>
       <ul class="toc__sub">
-        <li><a href="#ts-1" class="toc__link">DDL-엔티티 PK 불일치</a></li>
-        <li><a href="#ts-2" class="toc__link">매도 시 stale read</a></li>
-        <li><a href="#ts-3" class="toc__link">커밋 전 이벤트 발행</a></li>
+        <li><a href="#ts-1" class="toc__link">매도 시 stale read</a></li>
+        <li><a href="#ts-2" class="toc__link">커밋 전 이벤트 발행</a></li>
       </ul>
     </li>
     <li class="toc__item">
@@ -390,17 +389,7 @@ public void handleOrderMatchedEvent(OrderMatchedEvent event) { ... }</code></pre
     <h2 class="section__title">Troubleshooting</h2>
 
     <details id="ts-1" class="accordion">
-      <summary class="accordion__trigger">DDL-엔티티 PK 필드명 불일치로 CI 전체 실패</summary>
-      <div class="accordion__content">
-        <p><strong>증상:</strong> CI에서 전체 테스트 실패. DDL의 컬럼명과 JPA 엔티티 필드명이 매칭되지 않아 테이블 생성 자체가 실패.</p>
-        <p><strong>원인:</strong> DDL에서 PK를 <code class="mono">order_id</code>로 정의했는데, 엔티티에서는 <code class="mono">id</code>로 선언. Spring naming strategy가 <code class="mono">orderId &rarr; order_id</code>로 변환하는데, 필드명이 <code class="mono">id</code>면 <code class="mono">id</code>로 매핑되어 불일치.</p>
-        <p><strong>해결:</strong> 엔티티 PK 필드를 <code class="mono">id &rarr; orderId</code>로 변경. 이후 "DDL 우선 확인" 규칙을 팀 컨벤션에 추가.</p>
-        <p><strong>교훈:</strong> DDL이 진실의 원천(source of truth). 팀 프로젝트에서 DDL은 여러 팀원이 공유하는 계약이므로, 엔티티 변경이 DDL 변경보다 안전하다.</p>
-      </div>
-    </details>
-
-    <details id="ts-2" class="accordion">
-      <summary class="accordion__trigger">매도 시 비관적 락 누락으로 stale avgPrice 읽기</summary>
+      <summary class="accordion__trigger"><span class="accordion__trigger-text">매도 시 비관적 락 누락으로 stale avgPrice 읽기<span class="accordion__lesson">금액 로직은 읽기 시점부터 락을 걸어야 한다</span></span></summary>
       <div class="accordion__content">
         <p><strong>증상:</strong> 매도 실현손익 계산에서 간헐적으로 잘못된 평균단가로 손익이 계산됨. 동시에 추가 매수와 매도가 발생하면 stale read.</p>
         <p><strong>원인:</strong> 매도 흐름에서 일반 조회 후 avgPrice를 읽고, 이후 deductQuantity 호출. 조회~변경 사이에 다른 트랜잭션이 addQuantity를 실행하면 이미 읽은 값은 반영되지 않음.</p>
@@ -409,8 +398,8 @@ public void handleOrderMatchedEvent(OrderMatchedEvent event) { ... }</code></pre
       </div>
     </details>
 
-    <details id="ts-3" class="accordion">
-      <summary class="accordion__trigger">트랜잭션 커밋 전 이벤트 발행으로 정합성 깨짐</summary>
+    <details id="ts-2" class="accordion">
+      <summary class="accordion__trigger"><span class="accordion__trigger-text">트랜잭션 커밋 전 이벤트 발행으로 정합성 깨짐<span class="accordion__lesson">"언제 발행하느냐"가 "무엇을 발행하느냐"만큼 중요하다</span></span></summary>
       <div class="accordion__content">
         <p><strong>증상:</strong> 체결 과정에서 예외가 발생해 롤백됐는데, WebSocket으로 "체결 완료" 알림이 이미 전송됨.</p>
         <p><strong>원인:</strong> 초기 <code class="mono">@EventListener</code>는 이벤트 발행 시점(트랜잭션 내부)에 즉시 실행. 이벤트 핸들러 실행 후 트랜잭션이 롤백될 수 있음.</p>
