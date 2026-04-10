@@ -171,7 +171,7 @@ erDiagram
         </div>
         <div class="flow__step flow__step--lock" data-step="3">
           <p class="flow__label flow__label--lock">Atomic SQL</p>
-          <p class="flow__title">BCrypt 검증 + 실패 시 원자적 카운트</p>
+          <p class="flow__title">BCrypt 검증 + 실패 시 Atomic 카운트</p>
           <p class="flow__desc">비밀번호 불일치 시 단일 UPDATE문으로 <code>failed_login_count + 1</code> + 5회 도달 시 30초 잠금. SELECT 없이 race condition 원천 차단.</p>
         </div>
         <div class="flow__step" data-step="4">
@@ -250,7 +250,7 @@ erDiagram
       <p class="decision-card__label">Problem</p>
       <p class="decision-card__text">로그인 실패 시 카운트 증가 + 5회 시 잠금이 필요. Java에서 SELECT &rarr; UPDATE 순서로 처리하면 동시 시도 시 race condition으로 실패 횟수가 누락될 수 있다.</p>
       <p class="decision-card__label">Decision</p>
-      <p class="decision-card__text">단일 UPDATE문에 CASE 표현식으로 카운트 증가 + 조건부 잠금을 원자적 처리. SELECT 없이 UPDATE만으로 완결.</p>
+      <p class="decision-card__text">단일 UPDATE문에 CASE 표현식으로 카운트 증가 + 조건부 잠금을 Atomic 처리. SELECT 없이 UPDATE만으로 완결.</p>
       <p class="decision-card__label">Result</p>
       <p class="decision-card__text">네트워크 왕복 1회, 락 경합 없음, 5회 실패 시 정확히 30초 잠금 보장.</p>
       <pre class="code-block"><code class="language-sql">UPDATE admin

@@ -60,7 +60,7 @@
   <!-- Header -->
   <header class="detail-header">
     <h1 class="detail-header__title">WeFin &mdash; 소셜 모의투자 플랫폼</h1>
-    <p class="detail-header__meta">2026.03 ~ 2026.05 &middot; 6인 팀</p>
+    <p class="detail-header__meta">2026.03 ~ 진행 중 &middot; 6인 팀</p>
     <p class="detail-header__meta">담당: 주문/체결/자산/랭킹 모듈 설계&middot;구현 &mdash; 시세/종목 담당 팀원과 인터페이스 계약 기반 협업</p>
     <p class="detail-header__meta" style="margin-top: 0.5rem;">Java 17 &middot; Spring Boot 3 &middot; JPA &middot; QueryDSL 5.0 &middot; PostgreSQL &middot; JUnit 5 &middot; Mockito &middot; Testcontainers</p>
     <div class="detail-header__links">
@@ -247,8 +247,8 @@ erDiagram
 
         <div class="flow__step flow__step--lock" data-step="2">
           <p class="flow__label flow__label--lock">Pessimistic Lock</p>
-          <p class="flow__title">계좌 락 획득 (데드락 방지)</p>
-          <p class="flow__desc"><code class="mono">getAccountWithLock()</code>으로 계좌 락을 먼저 잡음. 매수와 동일하게 <strong>Account &rarr; Portfolio</strong> 순서를 유지하여 데드락 방지.</p>
+          <p class="flow__title">계좌 락 획득 (Deadlock 방지)</p>
+          <p class="flow__desc"><code class="mono">getAccountWithLock()</code>으로 계좌 락을 먼저 잡음. 매수와 동일하게 <strong>Account &rarr; Portfolio</strong> 순서를 유지하여 Deadlock 방지.</p>
         </div>
 
         <div class="flow__step flow__step--lock" data-step="3">
@@ -313,9 +313,9 @@ public static Trade createSellTrade(...) { ... tax, profit 포함 }</code></pre>
       <p class="decision-card__number">02</p>
       <h3 class="decision-card__title">비관적 락(PESSIMISTIC_WRITE) + 이중 방어</h3>
       <p class="decision-card__label">Problem</p>
-      <p class="decision-card__text">매수 로직이 <strong>check-then-act 패턴</strong>이다 &mdash; 잔고를 읽고, 검증하고, 차감하는 사이에 다른 스레드가 끼어들면 둘 다 검증을 통과해버린다. 단일 테이블이 아니라 계좌 차감 + 포트폴리오 갱신이 하나의 트랜잭션에서 일관성을 유지해야 하므로, 원자적 UPDATE 한 줄로는 해결 불가.</p>
+      <p class="decision-card__text">매수 로직이 <strong>check-then-act 패턴</strong>이다 &mdash; 잔고를 읽고, 검증하고, 차감하는 사이에 다른 스레드가 끼어들면 둘 다 검증을 통과해버린다. 단일 테이블이 아니라 계좌 차감 + 포트폴리오 갱신이 하나의 트랜잭션에서 일관성을 유지해야 하므로, Atomic UPDATE 한 줄로는 해결 불가.</p>
       <p class="decision-card__label">Decision</p>
-      <p class="decision-card__text">Repository에 <code class="mono">@Lock(PESSIMISTIC_WRITE)</code> + <code class="mono">findByIdForUpdate()</code> 메서드 분리. 엔티티의 <code class="mono">deduct()</code>에서 잔고 부족 검증 &mdash; <strong>DB 락 + 애플리케이션 검증 2중 보호</strong>.</p>
+      <p class="decision-card__text">Repository에 <code class="mono">@Lock(PESSIMISTIC_WRITE)</code> + <code class="mono">findByIdForUpdate()</code> 메서드 분리. 엔티티의 <code class="mono">deduct()</code>에서 잔고 부족 검증 &mdash; <strong>DB 락 + 애플리케이션 검증 2중 보호</strong>. 낙관적 락은 충돌 시 트랜잭션 전체를 재시도해야 하며, check-then-act 패턴에서 읽기~쓰기 사이 정합성이 깨질 수 있어 부적합하다고 판단.</p>
       <p class="decision-card__label">Result</p>
       <p class="decision-card__text">동시성 테스트 통과 (잔고 음수 0건). 계좌 생성 시 <code>DataIntegrityViolationException</code> catch로 중복 계좌 방어.</p>
       <pre class="code-block"><code class="language-java">@Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -357,9 +357,9 @@ public void handleOrderMatchedEvent(OrderMatchedEvent event) { ... }</code></pre
       <p class="decision-card__label">Problem</p>
       <p class="decision-card__text">비관적 락을 도입했지만, 매수+매도 혼합 동시성 테스트에서 PostgreSQL이 <strong>Deadlock을 감지</strong>하고 트랜잭션을 강제 롤백. 원인은 매수(<code>Account &rarr; Portfolio</code>)와 매도(<code>Portfolio &rarr; Account</code>)에서 락 순서가 반대였던 것.</p>
       <p class="decision-card__label">Decision</p>
-      <p class="decision-card__text"><code>sellMarket()</code>에서 계좌 락을 먼저 잡도록 수정. <code>VirtualAccountService</code>에 <code>getAccountWithLock()</code> 메서드를 추가하여 매수/매도 모두 <strong>Account &rarr; Portfolio</strong> 순서로 통일. 데드락 4가지 조건 중 <strong>순환 대기(circular wait)를 제거</strong>하는 방식.</p>
+      <p class="decision-card__text"><code>sellMarket()</code>에서 계좌 락을 먼저 잡도록 수정. <code>VirtualAccountService</code>에 <code>getAccountWithLock()</code> 메서드를 추가하여 매수/매도 모두 <strong>Account &rarr; Portfolio</strong> 순서로 통일. Deadlock 4가지 조건 중 <strong>순환 대기(circular wait)를 제거</strong>하는 방식.</p>
       <p class="decision-card__label">Result</p>
-      <p class="decision-card__text">락 순서 통일 후 데드락 완전 해소. <strong>교훈: 단위 테스트로는 발견할 수 없다.</strong> <code>CountDownLatch</code> + <code>ExecutorService</code> 기반 동시성 통합 테스트를 작성해야만 실제 데드락을 재현할 수 있다.</p>
+      <p class="decision-card__text">락 순서 통일 후 Deadlock 완전 해소. <strong>교훈: 단위 테스트로는 발견할 수 없다.</strong> <code>CountDownLatch</code> + <code>ExecutorService</code> 기반 동시성 통합 테스트를 작성해야만 실제 Deadlock을 재현할 수 있다.</p>
       <p style="margin-top:0.5rem"><a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-3-2-동시성-통합-테스트-Deadlock-발견과-락-순서-통일" target="_blank">관련 블로그</a></p>
     </div>
   </section>
@@ -454,8 +454,7 @@ given(stockInfoProvider.getStock(1L))
   <section id="team-impact" class="section">
     <h2 class="section__title">Team Impact</h2>
     <ul class="impact-list">
-      <li><strong>API 응답 규격 통일</strong> &mdash; <code class="mono">ApiResponse&lt;T&gt;</code> 구조를 제안하여 팀 전체(6인) 적용. 프론트엔드 파싱 로직 단일화. <a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-1-API-응답-구조-통일과-에러-코드-설계" target="_blank">블로그</a></li>
-      <li><strong>ErrorCode 체계 설계</strong> &mdash; 도메인별 prefix (<code class="mono">ORDER_*</code>, <code class="mono">MARKET_*</code>)로 에러 코드 구분. 숫자 대신 의미 있는 이름 사용.</li>
+      <li><strong>API 응답 규격 + ErrorCode 체계 통일</strong> &mdash; <code class="mono">ApiResponse&lt;T&gt;</code> + 도메인별 prefix(<code class="mono">ORDER_*</code>, <code class="mono">MARKET_*</code>) ErrorCode를 설계하여 팀 전체(6인) 적용. <a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-1-API-응답-구조-통일과-에러-코드-설계" target="_blank">블로그</a></li>
       <li><strong>에러 처리 가이드 작성</strong> &mdash; <code class="mono">BusinessException</code> + <code class="mono">ErrorCode</code> + <code class="mono">GlobalExceptionHandler</code> 패턴으로 팀 전체 에러 처리 통일. Service에서 throw만 하면 자동 응답되는 구조를 설계하고 노션에 문서화. <a class="blog-badge" href="https://mousy-filament-7d5.notion.site/_-32d408702c75805bbdead40e8a277008?source=copy_link" target="_blank">노션 문서</a></li>
       <li><strong>DTO 계층 분리 가이드 작성</strong> &mdash; 패키지를 domain/web/global로 나누자고 제안하는 과정에서 "Service가 web의 DTO를 import하면 의존 방향이 꼬인다"는 문제를 발견. 직접 학습 후 Request/Response/Command/Info 4종의 분리 규칙을 노션에 문서화하여 팀을 설득&middot;적용. <a class="blog-badge" href="https://www.notion.so/DTO-334408702c75805aae6dcfc898ac8923?source=copy_link" target="_blank">노션 문서</a> <a class="blog-badge" href="https://velog.io/@ochhs0829/WeFin-스프린트-3-1-Controller-API-구현-DTO-계층-분리-Bean-Validation-슬라이스-테스트" target="_blank">블로그</a></li>
       <li><strong>코딩 컨벤션 문서화</strong> &mdash; 패키지 규칙, 네이밍 규칙, DB 컨벤션, 락 순서 등을 문서(<code class="mono">trading-convention.md</code>)로 정리&middot;관리.</li>
